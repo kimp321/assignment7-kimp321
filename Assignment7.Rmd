@@ -5,74 +5,234 @@ date: "11/30/2016"
 output: html_document
 ---
 
-In the following assignment you will be looking at data from an one level of an online geography tutoring system used by 5th grade students. The game involves a pre-test of geography knowledge (pre.test), a series of assignments for which you have the average score (av.assignment.score),  the number of messages sent by each student to other students about the assignments (messages), the number of forum posts students posted asking questions about the assignment (forum.posts), a post test at the end of the level (post.test) and whether or not the system allowed the students to go on to the next level (level.up).  
+In the following assignment you will be looking at data from an one level of an online geography tutoring system used by 5th grade students. The game involves:
+- a pre-test of geography knowledge (pre.test),
+- a series of assignments for which you have the average score (av.assignment.score), 
+- the number of messages sent by each student to other students about the assignments (messages), 
+- the number of forum posts students posted asking questions about the assignment (forum.posts), 
+- a post test at the end of the level (post.test) 
+- and whether or not the system allowed the students to go on to the next level (level.up).  
 
 #Upload data
 ```{r}
-
+df <- read.csv('online.data.csv')
 ```
 
+
 #Visualization 
+
 ```{r}
 #Start by creating histograms of the distributions for all variables (#HINT: look up "facet" in the ggplot documentation)
+library(ggplot2)
 
 #Then visualize the relationships between variables
 
 #Try to capture an intution about the data and the relationships
 
 ```
+
+Resource: https://www3.nd.edu/~steve/computing_with_data/13_Facets/facets.html
+
+
+Comparison between pre-test and post-test scores and those did or did not level up.
+```{r}
+h <- ggplot(data = df, aes(x = pre.test.score, y = post.test.score)) + geom_histogram(stat="identity")
+h + facet_wrap(~level.up)
+```
+From the visualization, we can see that those who leveled up had higher pre.test.scores than those who did not.
+
+----
+
+Comparison between messages, forum.posts, and av.assignment.score between all members of the course.
+
+```{r}
+h <- ggplot(data = df, aes(x = forum.posts, y = messages)) + geom_histogram(stat="identity")
+h + facet_wrap(~av.assignment.score)
+```
+The visualization shows 
+- the individuals who scored the best in av.assignment.scores are on the higher end of forum.posts usage and on the lower end of messages usage. 
+- the individuals who scored the least in av.assignment.scores are on the lower end of forum.posts usage and on the lower end of messages usage. 
+
+---- 
+
+Comparison between messages, forum.posts, and av.assignment.score between members who leveled up.
+
+```{r}
+h <- ggplot(data = df_yes, aes(x = messages, y = forum.posts)) + geom_histogram(stat="identity")
+h + facet_wrap(~av.assignment.score)
+```
+
+The visualization shows those who leveled up with the highest av.assignment.score are in the mid-range of messages usage and mid-range of forum posts usage.
+
+----
+
+Comparison between messages, forum.posts, and av.assignment.score between members who did not level up.
+
+```{r}
+h <- ggplot(data = df_no, aes(x = messages, y = forum.posts)) + geom_histogram(stat="identity")
+h + facet_wrap(~av.assignment.score)
+```
+
+The visualization shows those who did not level up with the highest av.assignment.score are in the lower-range of messages usage and mid-range of low range of forum posts usage.
+
 #Classification tree
 ```{r}
 #Create a classification tree that predicts whether a student "levels up" in the online course using three variables of your choice (As we did last time, set all controls to their minimums)
 
 #Plot and generate a CP table for your tree 
 
+install.packages("rpart")
+library("rpart")
+
+c.tree <- rpart(level.up ~ messages + forum.posts + av.assignment.score, method="class", data=df, control=rpart.control(minsplit=15, cp=.00001))
+printcp(c.tree)
+post(c.tree, file = "tree.ps", title = "Classification Tree")
+```
+
+
+```{r}
+
 #Generate a probability value that represents the probability that a student levels up based your classification tree 
 
-D1$pred <- predict(rp, type = "prob")[,2]#Last class we used type = "class" which predicted the classification for us, this time we are using type = "prob" to see the probability that our classififcation is based on.
+df$pred <- predict(c.tree, df, type = "prob")[,2]#Last class we used type = "class" which predicted the classification for us, this time we are using type = "prob" to see the probability that our classififcation is based on.
 
 #Now you can generate the ROC curve for your model. You will need to install the package ROCR to do this.
 
-library(ROCR)
+install.packages('ROCR')
+library('ROCR')
 
 #Plot the curve
-pred.detail <- prediction(D1$pred, D1$level.up) 
+pred.detail <- prediction(df$pred, df$level.up) 
 plot(performance(pred.detail, "tpr", "fpr"))
 abline(0, 1, lty = 2)
 
 #Calculate the Area Under the Curve
-unlist(slot(performance(Pred2,"auc"), "y.values"))#Unlist liberates the AUC value from the "performance" object created by ROCR
-
-#Now repeat this process, but using the variables you did not use for the previous model and compare the plots & results of your two models. Which one do you think was the better model? Why?
+unlist(slot(performance(pred.detail,"auc"), "y.values"))#Unlist liberates the AUC value from the "performance" object created by ROCR
 
 ```
+
+```{r}
+#Now repeat this process, but using the variables you did not use for the previous model and compare the plots & results of your two models. Which one do you think was the better model? Why?
+
+c.tree1 <- rpart(level.up ~ post.test.score + pre.test.score + av.assignment.score, method="class", data=df, control=rpart.control(minsplit=15, cp=.00001))
+printcp(c.tree1)
+post(c.tree1, file = "tree1.ps", title = "Classification Tree")
+
+df$pred2 <- predict(c.tree1, df, type = "prob")[,2]
+
+pred.detail2 <- prediction(df$pred2, df$level.up) 
+plot(performance(pred.detail2, "tpr", "fpr"))
+abline(0, 1, lty = 2)
+
+unlist(slot(performance(pred.detail2,"auc"), "y.values"))
+
+```
+
+# My first model has a 'reasonable' relationship between false positives and true positive rates, whereas my second model has a 'good separation'. Since the graph the indicates a 'good separation' relationship is more desirable, the second model would be the better one to work with.
+
 #Thresholds
 ```{r}
 #Look at the ROC plot for your first model. Based on this plot choose a probability threshold that balances capturing the most correct predictions against false positives. Then generate a new variable in your data set that classifies each student according to your chosen threshold.
 
-threshold.pred1 <- 
+threshold.pred1 <- ifelse(df$pred >= .8, 'yes', 'no')
+df$threshold.pred1 <- threshold.pred1
 
 #Now generate three diagnostics:
 
-D1$accuracy.model1 <-
+library('dplyr')
 
-D1$precision.model1 <- 
+true_positives <- filter(df, level.up == 'yes')
+true_positives <- filter(true_positives, threshold.pred1 == 'yes') %>% count()
 
-D1$recall.model1 <- 
+true_negatives <- filter(df, level.up == 'no') 
+true_negatives <- filter(true_negatives, threshold.pred1 == 'no') %>% count()
+
+correct_predictions <- true_positives + true_negatives
+
+total_predictions <- count(df)
+
+false_positive <- filter(df, level.up == 'no')
+false_positive <- filter(false_positive, threshold.pred1 == 'yes') %>% count()
+
+false_negative <- filter(df, level.up == 'yes')
+false_negative <- filter(false_negative, threshold.pred1 == 'no') %>% count()
+
+D1<- as.data.frame(correct_predictions / total_predictions)
+D1$precision.model1 <- correct_predictions / (correct_predictions + false_positive)
+D1$recall.model1 <- correct_predictions / (correct_predictions + false_negative)
+names(D1) <- c('accuracymodel1', 'precision.model1', 'recall.model1')
 
 #Finally, calculate Kappa for your model according to:
 
 #First generate the table of comparisons
-table1 <- table(D1$level.up, D1$threshold.pred1)
+table1 <- table(df$level.up, df$threshold.pred1)
 
 #Convert to matrix
 matrix1 <- as.matrix(table1)
 
 #Calculate kappa
-kappa(matrix1, exact = TRUE)/kappa(matrix1)
+install.packages('psych')
+library('psych')
+cohen.kappa(matrix1)
+```
 
 #Now choose a different threshold value and repeat these diagnostics. What conclusions can you draw about your two thresholds?
 
+
+```{r}
+acc.perf = performance(pred.detail, measure = "acc")
+plot(acc.perf)
+
+ind = which.max( slot(acc.perf, "y.values")[[1]] )
+acc = slot(acc.perf, "y.values")[[1]][ind]
+cutoff = slot(acc.perf, "x.values")[[1]][ind]
+print(c(accuracy= acc, cutoff = cutoff))
 ```
 
 
+```{r}
+threshold.pred1 <- ifelse(df$pred >= 0.9873418, 'yes', 'no')
+df$threshold.pred1 <- threshold.pred1
+
+#Now generate three diagnostics:
+
+library('dplyr')
+
+true_positives <- filter(df, level.up == 'yes')
+true_positives <- filter(true_positives, threshold.pred1 == 'yes') %>% count()
+
+true_negatives <- filter(df, level.up == 'no') 
+true_negatives <- filter(true_negatives, threshold.pred1 == 'no') %>% count()
+
+correct_predictions <- true_positives + true_negatives
+
+total_predictions <- count(df)
+
+false_positive <- filter(df, level.up == 'no')
+false_positive <- filter(false_positive, threshold.pred1 == 'yes') %>% count()
+
+false_negative <- filter(df, level.up == 'yes')
+false_negative <- filter(false_negative, threshold.pred1 == 'no') %>% count()
+
+D1<- as.data.frame(correct_predictions / total_predictions)
+D1$precision.model1 <- correct_predictions / (correct_predictions + false_positive)
+D1$recall.model1 <- correct_predictions / (correct_predictions + false_negative)
+names(D1) <- c('accuracymodel1', 'precision.model1', 'recall.model1')
+
+
+#Finally, calculate Kappa for your model according to:
+
+#First generate the table of comparisons
+table1 <- table(df$level.up, df$threshold.pred1)
+
+#Convert to matrix
+matrix1 <- as.matrix(table1)
+
+#Calculate kappa
+cohen.kappa(matrix1)
+```
+
+
+# The Kappa calculated at the threshold .987418 has a higher Kappa than the threshold at .8. The difference is likely due to the difference in the set thresholds. So the greater the threshold, the greater the Kappa value. 
+
+# Note: A Cohen's Kappa of 1 "implies perfect agreement" (http://www.pmean.com/definitions/kappa.htm) between observed and expected agreement.
